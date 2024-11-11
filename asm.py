@@ -101,7 +101,7 @@ def save_to_db(domain, port, alert_message, conn):
                    (domain, port, scan_date, alert_message))
     conn.commit()
 
-def load_config(config_file="config.ini"):
+def load_config(config_file):
     config = configparser.ConfigParser()
     config.read(config_file)
 
@@ -208,8 +208,8 @@ def run_nuclei(input_file, output_file=None, concurrency=10, rate=20, num_thread
 
 def execute_scan(domain, port_scan, config, output, vuln_scan):
     conn = init_db()
-
-    valid_hosts, path_sublist3r, path_st, api_key_st = load_config() 
+    config_file = "config.ini" if config else None
+    valid_hosts, path_sublist3r, path_st, api_key_st = load_config(config_file) 
 
     with tempfile.TemporaryDirectory() as tmpdir:
         subfinder_file = os.path.join(tmpdir, "subfinder.txt")
@@ -250,7 +250,7 @@ def execute_scan(domain, port_scan, config, output, vuln_scan):
 
         # If "-c"
         if config:
-            valid_hosts = load_config(config)
+            valid_hosts = load_config(config_file)
             validate_ports(naabu_file, valid_hosts, conn, output)
 
 @click.command()
@@ -263,7 +263,7 @@ def execute_scan(domain, port_scan, config, output, vuln_scan):
 
 def main(domain, port_scan, config, output, vuln_scan, set_time):
     def run_tool():
-        print("Starting scheduled scan...")
+        print("Starting scan...")
         execute_scan(domain=domain, port_scan=port_scan, config=config, output=output, vuln_scan=vuln_scan)
 
     # If "-t"
@@ -276,7 +276,6 @@ def main(domain, port_scan, config, output, vuln_scan, set_time):
             time.sleep(1)
     else:
         execute_scan(domain=domain, port_scan=port_scan, config=config, output=output, vuln_scan=vuln_scan)
-
 
 if __name__ == "__main__":
     main()
