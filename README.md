@@ -1,4 +1,4 @@
-# Automated Subdomain Enumeration and Port Scanning and  Tool
+# Automated Subdomain Enumeration and Port Scanning Tool
 
 ## Feature:
 - Find **all subdomains** and scan **opening ports** on them from an input domain name or IPs list.
@@ -22,7 +22,7 @@ sudo apt install python3 python3-pip -y
 ```
 2. Install tool and run the setup.sh:
 ```
-git clone https://github.com/vdnamliv/asm/tree/main
+git clone https://github.com/vdnamliv/Attack-Surface-Management-tool/tree/main
 chmod +x setup.sh
 ./setup.sh
 ```
