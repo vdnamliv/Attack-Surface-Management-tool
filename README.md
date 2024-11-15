@@ -1,4 +1,4 @@
-# Automated Subdomain Enumeration and Port Scanning Tool
+# Automated Attack Surface Management Tool
 
 ## Feature:
 - Find **all subdomains** and scan **opening ports** on them from an input domain name or IPs list.
@@ -45,14 +45,13 @@ chmod +x setup.sh
 ## Step by step to send ALERT to email
 1. Using database to save exist alert:
 To avoid email "bombs", I stored the sent alerts in a simple SQLite database (alert.db).
-2. Using msmtp to send Alert to email: 
-Open hidden file .msmtprc:
+2. Open hidden file .msmtprc:
 ```
 nano ~/Attack-Surface-Management-tool/.msmtprc
 ```
-Change "your_gmail" and "your_app_password", if don't know how to create app password, go [hear](https://myaccount.google.com/apppasswords?pli=1&rapt=AEjHL4OVlHBZyIzfrw29E_Q4mYB5-Ei_wmrnL7Bw5Mvr51ST_6r9yfNADQL6wxYkdzGYKzB5DULwwhRcJaOEfKjloUDyhUbRCHUonLcj99aCP6EDXzOBBFM)
+Change "your_gmail" and "your_app_password", if don't know how to create app password, go [here](https://myaccount.google.com/apppasswords?pli=1&rapt=AEjHL4OVlHBZyIzfrw29E_Q4mYB5-Ei_wmrnL7Bw5Mvr51ST_6r9yfNADQL6wxYkdzGYKzB5DULwwhRcJaOEfKjloUDyhUbRCHUonLcj99aCP6EDXzOBBFM)
 
-Send alert to your email:
+3. Send alert to your email:
 ```
 ./send_alert.sh
 ```
