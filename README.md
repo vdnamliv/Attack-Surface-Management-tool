@@ -23,7 +23,7 @@ sudo apt install git
 ```
 2. Install tool and run the setup.sh:
 ```
-git clone https://github.com/it-sec-vf/asm
+git clone https://github.com/vdnamliv/Attack-Surface-Management-tool
 ```
 ```
 cd asm
@@ -46,21 +46,12 @@ chmod +x setup.sh
 1. Using database to save exist alert:
 To avoid email "bombs", I stored the sent alerts in a simple SQLite database (alert.db).
 2. Using msmtp to send Alert to email: 
+Open hidden file .msmtprc:
 ```
-nano ~/.msmtprc
+nano ~/Attack-Surface-Management-tool/.msmtprc
 ```
-Copy this:
-```
-account default
-host smtp.gmail.com
-port 587
-auth on
-user your_gmail
-password your_app_password
-from your_gmail
-tls on
-tls_trust_file /etc/ssl/certs/ca-certificates.crt
-```
+Change "your_gmail" and "your_app_password", if don't know how to create app password, go [hear](https://myaccount.google.com/apppasswords?pli=1&rapt=AEjHL4OVlHBZyIzfrw29E_Q4mYB5-Ei_wmrnL7Bw5Mvr51ST_6r9yfNADQL6wxYkdzGYKzB5DULwwhRcJaOEfKjloUDyhUbRCHUonLcj99aCP6EDXzOBBFM)
+
 Send alert to your email:
 ```
 ./send_alert.sh
