@@ -17,31 +17,52 @@ def run_command(command):
         exit(1)
 
 def run_subfinder(domain, output_file):
-    click.echo(f"Running subfinder on {domain}...")
-    subfinder_cmd = f"subfinder -d {domain} --all --recursive -o {output_file}"
-    run_command(subfinder_cmd)
+    try:
+        click.echo(f"Running Subfinder on {domain}...")
+        subfinder_cmd = f"subfinder -d {domain} --all --recursive -o {output_file}"
+        subprocess.run(subfinder_cmd, shell=True, check=True)
+    except Exception as e:
+        click.echo(f"Error running Subfinder: {e}")
 
 def run_sublist3r(domain, output_file, path_sublist3r):
-    click.echo(f"Running Sublist3r on {domain}...")
-    sublist3r_cmd = f"python3 {path_sublist3r} -d {domain} -o {output_file}"
-    run_command(sublist3r_cmd)
+    try:
+        click.echo(f"Running Sublist3r on {domain}...")
+        sublist3r_cmd = f"python3 {path_sublist3r} -d {domain} -o {output_file}"
+        subprocess.run(sublist3r_cmd, shell=True, check=True)
+    except Exception as e:
+        click.echo(f"Error running Sublist3r: {e}")
 
 def run_assetfinder(domain, output_file):
-    click.echo(f"Running assetfinder on {domain}...")
-    assetfinder_cmd = f"assetfinder --subs-only {domain} > {output_file}"
-    run_command(assetfinder_cmd)
+    try:
+        click.echo(f"Running Assetfinder on {domain}...")
+        assetfinder_cmd = f"assetfinder --subs-only {domain} > {output_file}"
+        subprocess.run(assetfinder_cmd, shell=True, check=True)
+    except Exception as e:
+        click.echo(f"Error running Assetfinder: {e}")
 
 def run_securitytrails(domain, output_file, path_st, api_key_st):
-    click.echo(f"Running SecurityTrails on {domain}...")
-    st_cmd = f"python3 {path_st} -d {domain} -k {api_key_st} > {output_file}"
-    run_command(st_cmd)
+    if not api_key_st:
+        click.echo("No valid SecurityTrails API key found, skipping SecurityTrails scan.")
+        return None
+
+    try:
+        click.echo(f"Running SecurityTrails on {domain}...")
+        st_cmd = f"python3 {path_st} -d {domain} -k {api_key_st} > {output_file}"
+        run_command(st_cmd)
+    except subprocess.CalledProcessError:
+        click.echo("Error: SecurityTrails command failed or API key may have expired.")
+        return None
 
 def merge_files(file1, file2, file3, file4, output_file):
     subdomains = set()
     for fname in [file1, file2, file3, file4]:
-        with open(fname) as infile:
-            for line in infile:
-                subdomains.add(line.strip())
+        if os.path.exists(fname): 
+            with open(fname) as infile:
+                for line in infile:
+                    subdomains.add(line.strip())
+        else:
+            print(f"Warning: {fname} not found, skipping...")
+
     with open(output_file, 'w') as outfile:
         for subdomain in subdomains:
             outfile.write(subdomain + '\n')
@@ -60,19 +81,30 @@ def run_naabu(input_file, output_file):
         return False
     return True
 
-def parse_naabu_output(input_file):
+def parse_naabu_output(input_file, output_file):
     port_dict = {}
     with open(input_file) as infile:
         for line in infile:
-            domain, port = line.strip().split(':')
-            if domain not in port_dict:
-                port_dict[domain] = []
-            port_dict[domain].append(port)
+            try:
+                domain, port = line.strip().split(':')
+                if domain not in port_dict:
+                    port_dict[domain] = []
+                port_dict[domain].append(port)
+            except ValueError:
+                click.echo(f"Invalid line in naabu output: {line.strip()}")
 
+    with open(output_file, 'w') as outfile:
+        for domain, ports in port_dict.items():
+            result_line = f"{domain} = {', '.join(ports)}"
+            outfile.write(result_line + '\n')
+
+    # Optionally, echo the result
     for domain, ports in port_dict.items():
         result_line = f"{domain} = {', '.join(ports)}"
         click.echo(result_line)
+
     return port_dict
+
 
 """
 Ta se build open_ports.db
@@ -84,21 +116,26 @@ Ta se build open_ports.db
 def init_db(db_path="open_ports.db"):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS open_ports (
-                        domain TEXT,
-                        port TEXT,
-                        scan_date TIMESTAMP,
-                        alert_message TEXT,
-                        PRIMARY KEY (domain, port)
-                     )''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS open_ports (
+            domain TEXT,
+            port TEXT,
+            scan_date INTEGER,
+            alert_message TEXT,
+            PRIMARY KEY (domain, port)
+        )
+    ''')
     conn.commit()
     return conn
 
 def save_to_db(domain, port, alert_message, conn):
     cursor = conn.cursor()
-    scan_date = int(datetime.now().timestamp()) 
-    cursor.execute("REPLACE INTO open_ports (domain, port, scan_date, alert_message) VALUES (?, ?, ?, ?)",
-                   (domain, port, scan_date, alert_message))
+    scan_date = int(datetime.now().timestamp())
+    cursor.execute("""
+        INSERT INTO open_ports (domain, port, scan_date, alert_message) 
+        VALUES (?, ?, ?, ?) 
+        ON CONFLICT(domain, port) DO UPDATE SET scan_date=excluded.scan_date, alert_message=excluded.alert_message
+    """, (domain, port, scan_date, alert_message))
     conn.commit()
 
 def load_config(config_file):
@@ -117,20 +154,18 @@ def load_config(config_file):
     return valid_hosts, path_sublist3r, path_st, api_key_st
 
 #querry db to check domain-port exist ?
-def should_alert(domain, port, alert_message, conn, update_db=False):
+def should_alert(domain, port, conn):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM open_ports WHERE domain = ? AND port = ?", (domain, port))
     exists = cursor.fetchone()
+    return exists is None  
 
-    if not exists:
-        if update_db:
-            scan_date = int(datetime.now().timestamp())
-            cursor.execute("INSERT INTO open_ports (domain, port, scan_date) VALUES (?, ?, ?)", 
-                           (domain, port, scan_date))
-            conn.commit()
-        return True  
-    return False  
-
+"""
+Logic kiem tra alert:
+- dau tien kiem tra trong valid_hosts trong config.ini, neu trung het thi No Alert
+- neu con host-port la. thi kiem tra tiep trong db --> trung het thi No new alert
+- neu khong co trong db -->In ra Alert 
+"""
 def validate_ports(input_file, valid_hosts, conn, output_file=None):
     alert = False
     output_data = []
@@ -138,77 +173,49 @@ def validate_ports(input_file, valid_hosts, conn, output_file=None):
 
     with open(input_file) as infile:
         for line in infile:
-            domain, port = line.strip().split(':')
-            port = port.strip()
+            try:
+                domain, ports = line.strip().split('=')
+                domain = domain.strip()
+                ports = [port.strip() for port in ports.split(',')]
+            except ValueError:
+                click.echo(f"Invalid line format in formatted naabu file: {line.strip()}")
+                continue
+
             if domain in valid_hosts:
-                if port not in valid_hosts[domain]:
-                    alert_message = f"ALERT: {domain} has unauthorized port open - {port}"
+                valid_port_set = set(valid_hosts[domain])  
+                port_set = set(ports) - {'80', '443'}
+                
+                invalid_ports = port_set - valid_port_set
+                if invalid_ports:
+                    alert_message = f"ALERT: {domain} has unauthorized port(s) open - {', '.join(invalid_ports)}"
                     output_data.append(alert_message)
-                    port_dict.append((domain, port, alert_message))
+                    for port in invalid_ports:
+                        port_dict.append((domain, port, alert_message))
                     alert = True
             else:
-                if port not in {'80', '443'}:
-                    alert_message = f"ALERT: Unknown domain {domain} with open port {port}"
+                unknown_ports = set(ports) - {'80', '443', '8080', '8443'}
+                if unknown_ports:
+                    alert_message = f"ALERT: Unknown domain {domain} with open port(s) {', '.join(unknown_ports)}"
                     output_data.append(alert_message)
-                    port_dict.append((domain, port, alert_message))
+                    for port in unknown_ports:
+                        port_dict.append((domain, port, alert_message))
                     alert = True
 
-    # Save to database
-    for domain, port, alert_message in port_dict:
-        save_to_db(domain, port, alert_message, conn)  # Save each record individually
-
-    if output_file:
-        with open(output_file, 'a') as outfile:
-            for alert_msg in output_data:
-                outfile.write(alert_msg + '\n')
-    elif output_data:
-        click.echo("\n".join(output_data))
+    if port_dict:
+        for domain, port, alert_message in port_dict:
+            save_to_db(domain, port, alert_message, conn)
+        if output_file:
+            with open(output_file, 'a') as outfile:
+                for alert_msg in output_data:
+                    outfile.write(alert_msg + '\n')
+        else:
+            click.echo("\n".join(output_data))
     else:
-        click.echo("No unauthorized ports detected.")
+        click.echo("No alert" if not alert else "No new alert, old alerts are in database")
 
-def run_nuclei_for_chunk(subdomains_chunk, output_file=None, concurrency=10, rate=20):
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as temp_file:
-        temp_file_name = temp_file.name
-        temp_file.writelines(f"{subdomain}\n" for subdomain in subdomains_chunk)
-    
-    nuclei_cmd = f"nuclei -l {temp_file_name} -c {concurrency} -rl {rate}"
-    if output_file:
-        nuclei_cmd += f" -o {output_file}"
-    run_command(nuclei_cmd)
-    
-    os.remove(temp_file_name)
-
-def run_nuclei(input_file, output_file=None, concurrency=10, rate=20, num_threads=4):
-    click.echo("Checking for live subdomains...")
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as alive_file:
-        alive_subdomains = alive_file.name
-
-    # use httpx to check alive subdomain 
-    httpx_cmd = f"cat {input_file} | httpx-toolkit -sc | sed 's/ \\[.*//g' > {alive_subdomains}"
-    run_command(httpx_cmd)
-    
-    click.echo("Splitting live subdomains and running Nuclei vulnerability scan in parallel...")
-    
-    with open(alive_subdomains, 'r') as file:
-        all_subdomains = [line.strip() for line in file.readlines()]
-    
-    chunk_size = max(1, len(all_subdomains) // num_threads)
-    subdomains_chunks = [all_subdomains[i:i + chunk_size] for i in range(0, len(all_subdomains), chunk_size)]
-    
-    with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        futures = [executor.submit(run_nuclei_for_chunk, chunk, output_file, concurrency, rate) for chunk in subdomains_chunks]
-        
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                click.echo(f"Error during scan: {e}", err=True)
-
-    os.remove(alive_subdomains)
-
-def execute_scan(domain, port_scan, config, output, vuln_scan):
+def execute_scan(domain, port_scan, alert, output, conn): 
     conn = init_db()
-    config_file = "config.ini" if config else None
+    config_file = "config.ini" 
     valid_hosts, path_sublist3r, path_st, api_key_st = load_config(config_file) 
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -217,7 +224,8 @@ def execute_scan(domain, port_scan, config, output, vuln_scan):
         assetfinder_file = os.path.join(tmpdir, "assetfinder.txt")
         st_file = os.path.join(tmpdir, "securitytrails.txt")
         subs_file = os.path.join(tmpdir, "Subs.txt")
-        naabu_file = os.path.join(tmpdir, "naabu.txt")
+        naabu_raw_file = os.path.join(tmpdir, "naabu_raw.txt")
+        formatted_naabu_file = os.path.join(tmpdir, "formatted_naabu.txt")
 
         # If "-s"
         if domain:
@@ -232,7 +240,7 @@ def execute_scan(domain, port_scan, config, output, vuln_scan):
                     future.result()
             merge_files(subfinder_file, sublist3r_file, assetfinder_file, st_file, subs_file)
 
-            if not port_scan and not config and not vuln_scan:
+            if not port_scan and not alert :
                 if output:
                     with open(subs_file, 'r') as f, open(output, 'w') as o:
                         o.write(f.read())
@@ -241,41 +249,38 @@ def execute_scan(domain, port_scan, config, output, vuln_scan):
 
             # If "-p"
             if port_scan:
-                run_naabu(subs_file, naabu_file)
-                parse_naabu_output(naabu_file)
+                run_naabu(subs_file, naabu_raw_file)
+                parse_naabu_output(naabu_raw_file, formatted_naabu_file)
+                #validate_ports(formatted_naabu_file, valid_hosts, conn, output)
 
-            # If "-v"
-            if vuln_scan:
-                run_nuclei(subs_file, output)
-
-        # If "-c"
-        if config:
-            valid_hosts = load_config(config_file)
-            validate_ports(naabu_file, valid_hosts, conn, output)
+        # If "-a"
+        if alert:
+            validate_ports(formatted_naabu_file, valid_hosts, conn, output)
 
 @click.command()
 @click.option('-d', '--domain', type=str, help='Domain to scan for subdomains')
 @click.option('-p', '--port-scan', is_flag=True, help='Perform port scan with naabu on subdomains')
-@click.option('-c', '--config', is_flag=True, help='Configuration file with valid hosts and ports')
+@click.option('-a', '--alert', is_flag=True, help='Configuration file with valid hosts and ports')
 @click.option('-o', '--output', type=click.Path(), help='File to save the final results')
-@click.option('-v', '--vuln-scan', is_flag=True, help='Run Nuclei vulnerability scan on subdomains')
 @click.option('-t', '--set-time', type=int, help='Run tool automatically every specified minutes')
 
-def main(domain, port_scan, config, output, vuln_scan, set_time):
+def main(domain, port_scan, alert, output, set_time):
+    conn = init_db()
+
     def run_tool():
         print("Starting scan...")
-        execute_scan(domain=domain, port_scan=port_scan, config=config, output=output, vuln_scan=vuln_scan)
+        execute_scan(domain=domain, port_scan=port_scan, alert=alert, output=output, conn=conn)
 
-    # If "-t"
+    # if "-t"
     if set_time:
         schedule.every(set_time).minutes.do(run_tool)
-        print(f"Scheduled scan every {set_time} minutes.")
+        print(f"Scheduled scan every {set_time} minutes...")
 
         while True:
             schedule.run_pending()
             time.sleep(1)
     else:
-        execute_scan(domain=domain, port_scan=port_scan, config=config, output=output, vuln_scan=vuln_scan)
+        run_tool()
 
 if __name__ == "__main__":
     main()
