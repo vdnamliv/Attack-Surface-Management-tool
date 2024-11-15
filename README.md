@@ -15,27 +15,32 @@
 - Combines results of subdomains and opening ports from all tools to terminal or a single file
 
 ## Installation:
-1. Install python (if not already)
+1. Install python and git (if not already)
 ```
 sudo apt update
 sudo apt install python3 python3-pip -y
+sudo apt install git
 ```
 2. Install tool and run the setup.sh:
 ```
-git clone https://github.com/vdnamliv/Attack-Surface-Management-tool/tree/main
+git clone https://github.com/it-sec-vf/asm
+```
+```
+cd asm
 chmod +x setup.sh
 ./setup.sh
 ```
 
 ## Usage:
+  You can change your Securitytrails API key and registered host-port in config.ini
   ### Summary of <code>option</code> flag
 
 | Option      | Description                                           | Example Command                                           |
 |-------------|-------------------------------------------------------|----------------------------------------------------------|
 | `-d`      | Use Subfinder, Sublist3r, Assetfinder and Security-trails API to scan for subdomain   | `python3 asm.py -d <domain name> ` |
 | `-p`      | Perform opening port scan with Naabu on subdomains      | `python3 asm.py -d <domain name> -p` |
-| `-c` | Get valid host-port data from config.ini, compare with scanned host-ports and ALERT if there is a difference | `python3 asm.py -d <domain name> -p -c` |
-| `-t` | Run tool automatically every specified minutes | `python3 asm.py -d <domain name> -p -c -t 5` |
+| `-a` | Get valid host-port data from config.ini, compare with scanned host-ports and ALERT if there is a difference | `python3 asm.py -d <domain name> -p -a` |
+| `-t` | Run tool automatically every specified minutes | `python3 asm.py -d <domain name> -p -a -t 5` |
 
 ## Step by step to send ALERT to email
 1. Using database to save exist alert:
@@ -56,7 +61,7 @@ from your_gmail
 tls on
 tls_trust_file /etc/ssl/certs/ca-certificates.crt
 ```
-Schedule them:
+Send alert to your email:
 ```
 ./send_alert.sh
 ```
