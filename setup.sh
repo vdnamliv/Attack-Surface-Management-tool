@@ -1,54 +1,57 @@
 #!/bin/bash
 
-set -e  # Dừng script nếu có lỗi
+echo "[INFO] Starting setup script..."
 
-# Function to log steps
-log() {
-    echo -e "\n[INFO] $1\n"
-}
+# Update system packages
+echo "[INFO] Updating system packages..."
+sudo apt update
 
-# Install Python libraries
-log "Installing Python dependencies..."
-if [ -f requirements.txt ]; then
+# Install system dependencies
+echo "[INFO] Installing system dependencies..."
+sudo apt install -y python3 python3-pip python3-venv libpcap-dev git wget curl
+
+# Set up Python virtual environment
+echo "[INFO] Setting up Python environment..."
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install --upgrade pip
     pip install -r requirements.txt
 else
-    log "No requirements.txt found. Skipping Python dependencies."
+    echo "[INFO] Python virtual environment already exists."
+    source venv/bin/activate
 fi
 
-# Function to install Go
-install_go() {
-    log "Installing Go..."
-    wget https://go.dev/dl/go1.20.4.linux-amd64.tar.gz -O /tmp/go1.20.4.linux-amd64.tar.gz
-    sudo tar -C /usr/local -xzf /tmp/go1.20.4.linux-amd64.tar.gz
+# Install Go
+echo "[INFO] Checking Go installation..."
+if ! command -v go &> /dev/null; then
+    echo "[INFO] Installing Go..."
+    wget https://go.dev/dl/go1.20.4.linux-amd64.tar.gz
+    sudo tar -C /usr/local -xzf go1.20.4.linux-amd64.tar.gz
     export PATH=$PATH:/usr/local/go/bin
     echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-    log "Go installed successfully."
-}
-
-# Check if Go is installed
-if ! command -v go &> /dev/null; then
-    install_go
+    source ~/.bashrc
 else
-    log "Go is already installed."
+    echo "[INFO] Go is already installed."
 fi
 
-# Add Go's bin directory to PATH
+# Add Go bin directory to PATH
 export PATH=$PATH:$HOME/go/bin
 echo 'export PATH=$PATH:$HOME/go/bin' >> ~/.bashrc
 source ~/.bashrc
 
 # Install Go-based tools
-log "Checking and installing Go-based tools..."
+echo "[INFO] Installing Go-based tools..."
+
 install_go_tool() {
     local tool_name=$1
     local install_cmd=$2
-    local tool_path="$HOME/go/bin/$tool_name"
 
-    if [ ! -f "$tool_path" ]; then
-        log "Installing $tool_name..."
+    if ! command -v "$tool_name" &> /dev/null; then
+        echo "[INFO] Installing $tool_name..."
         eval "$install_cmd"
     else
-        log "$tool_name is already installed."
+        echo "[INFO] $tool_name is already installed."
     fi
 }
 
@@ -56,46 +59,26 @@ install_go_tool "subfinder" "go install -v github.com/projectdiscovery/subfinder
 install_go_tool "assetfinder" "go install -v github.com/tomnomnom/assetfinder@latest"
 install_go_tool "naabu" "go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
 
-# Install Sublist3r
-log "Checking and installing Sublist3r..."
+# Clone and install Sublist3r
+echo "[INFO] Checking and installing Sublist3r..."
 if [ ! -d "Sublist3r" ]; then
     git clone https://github.com/aboul3la/Sublist3r.git
     cd Sublist3r || exit
     pip install -r requirements.txt
     cd ..
 else
-    log "Sublist3r is already installed."
+    echo "[INFO] Sublist3r is already installed."
 fi
 
-# Install SecurityTrails API tool
-log "Checking and installing SecurityTrails API tool..."
+# Clone and install SecurityTrails API tool
+echo "[INFO] Checking and installing SecurityTrails API tool..."
 if [ ! -d "security-trails" ]; then
     git clone https://github.com/GabrielCS0/security-trails.git
     cd security-trails || exit
     pip install -r requirements.txt
     cd ..
 else
-    log "SecurityTrails API tool is already installed."
+    echo "[INFO] SecurityTrails API tool is already installed."
 fi
 
-# Verify installation
-log "Verifying tool installation..."
-if ! command -v subfinder &> /dev/null; then
-    log "Error: Subfinder installation failed."
-else
-    log "Subfinder installed successfully."
-fi
-
-if ! command -v assetfinder &> /dev/null; then
-    log "Error: Assetfinder installation failed."
-else
-    log "Assetfinder installed successfully."
-fi
-
-if ! python3 Sublist3r/sublist3r.py -h &> /dev/null; then
-    log "Error: Sublist3r installation failed."
-else
-    log "Sublist3r installed successfully."
-fi
-
-log "Setup completed successfully!"
+echo "[INFO] Setup completed successfully."
