@@ -9,6 +9,7 @@ sudo apt update
 # Install system dependencies
 echo "[INFO] Installing system dependencies..."
 sudo apt install -y python3 python3-pip python3-venv libpcap-dev git wget curl
+sudo apt install -y python3-schedule
 
 # Set up Python virtual environment
 echo "[INFO] Setting up Python environment..."
