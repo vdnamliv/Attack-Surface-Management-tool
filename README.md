@@ -15,10 +15,11 @@
 - Combines results of subdomains and opening ports from all tools to terminal or a single file
 
 ## Installation:
-1. Install python and git (if not already)
+1. Install python, go and git (if not already)
 ```
 sudo apt update
 sudo apt install python3 python3-pip -y
+sudo apt install golang-go
 sudo apt install git
 ```
 2. Install tool and run the setup.sh:
@@ -26,7 +27,7 @@ sudo apt install git
 git clone https://github.com/vdnamliv/Attack-Surface-Management-tool
 ```
 ```
-cd asm
+cd Attack-Surface-Management-tool
 chmod +x setup.sh
 ./setup.sh
 ```
