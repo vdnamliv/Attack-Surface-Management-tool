@@ -1,3 +1,4 @@
 click==8.1.7
 schedule==1.2.2
 requests==2.32.3 
+sqlite3
