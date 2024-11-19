@@ -214,11 +214,15 @@ def validate_ports(input_file, valid_hosts, conn, output_file=None):
         click.echo("No alert" if not alert else "No new alert, old alerts are in database")
 
 def execute_scan(domain, port_scan, alert, output, conn): 
+    # Initialize database connection
     conn = init_db()
-    config_file = "config.ini" 
-    valid_hosts, path_sublist3r, path_st, api_key_st = load_config(config_file) 
+
+    # Load configuration
+    config_file = "config.ini"
+    valid_hosts, path_sublist3r, path_st, api_key_st = load_config(config_file)
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Define temporary file paths
         subfinder_file = os.path.join(tmpdir, "subfinder.txt")
         sublist3r_file = os.path.join(tmpdir, "sublist3r.txt")
         assetfinder_file = os.path.join(tmpdir, "assetfinder.txt")
@@ -227,35 +231,47 @@ def execute_scan(domain, port_scan, alert, output, conn):
         naabu_raw_file = os.path.join(tmpdir, "naabu_raw.txt")
         formatted_naabu_file = os.path.join(tmpdir, "formatted_naabu.txt")
 
-        # If "-s"
+        # Subdomain enumeration if "-s" is specified
         if domain:
             with ThreadPoolExecutor(max_workers=3) as executor:
                 futures = [
-                    executor.submit(run_subfinder, domain, subfinder_file),
-                    executor.submit(run_sublist3r, domain, sublist3r_file, path_sublist3r),
-                    executor.submit(run_assetfinder, domain, assetfinder_file),
-                    executor.submit(run_securitytrails, domain, st_file, path_st, api_key_st)
+                    executor.submit(safe_run, run_subfinder, domain, subfinder_file),
+                    executor.submit(safe_run, run_sublist3r, domain, sublist3r_file, path_sublist3r),
+                    executor.submit(safe_run, run_assetfinder, domain, assetfinder_file),
+                    executor.submit(safe_run, run_securitytrails, domain, st_file, path_st, api_key_st)
                 ]
                 for future in futures:
-                    future.result()
+                    future.result()  # Wait for all tasks to complete
+
+            # Merge results
             merge_files(subfinder_file, sublist3r_file, assetfinder_file, st_file, subs_file)
 
-            if not port_scan and not alert :
+            # If only "-s" (no "-p" or "-a")
+            if not port_scan and not alert:
                 if output:
                     with open(subs_file, 'r') as f, open(output, 'w') as o:
                         o.write(f.read())
                 else:
-                    click.echo("You can specify an output file with using -o.")
+                    click.echo("You can specify an output file using -o.")
 
-            # If "-p"
+            # Port scanning if "-p" is specified
             if port_scan:
                 run_naabu(subs_file, naabu_raw_file)
                 parse_naabu_output(naabu_raw_file, formatted_naabu_file)
-                #validate_ports(formatted_naabu_file, valid_hosts, conn, output)
 
-        # If "-a"
+        # Alert validation if "-a" is specified
         if alert:
-            validate_ports(formatted_naabu_file, valid_hosts, conn, output)
+            if os.path.exists(formatted_naabu_file):
+                validate_ports(formatted_naabu_file, valid_hosts, conn, output)
+            else:
+                click.echo("No ports scanned or formatted_naabu_file is missing.")
+
+def safe_run(func, *args, **kwargs):
+    try:
+        func(*args, **kwargs)
+    except Exception as e:
+        click.echo(f"Error running {func.__name__}: {e}")
+
 
 @click.command()
 @click.option('-d', '--domain', type=str, help='Domain to scan for subdomains')
@@ -269,7 +285,7 @@ def main(domain, port_scan, alert, output, set_time):
 
     def run_tool():
         print("Starting scan...")
-        execute_scan(domain=domain, port_scan=port_scan, alert=alert, output=output, conn=conn)
+        safe_run(execute_scan, domain=domain, port_scan=port_scan, alert=alert, output=output, conn=conn)
 
     # if "-t"
     if set_time:
