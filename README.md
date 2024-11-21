@@ -41,7 +41,27 @@ chmod +x setup.sh
 | `-d`      | Use Subfinder, Sublist3r, Assetfinder and Security-trails API to scan for subdomain   | `python3 asm.py -d <domain name> ` |
 | `-p`      | Perform opening port scan with Naabu on subdomains      | `python3 asm.py -d <domain name> -p` |
 | `-a` | Get valid host-port data from config.ini, compare with scanned host-ports and ALERT if there is a difference | `python3 asm.py -d <domain name> -p -a` |
-| `-t` | Run tool automatically every specified minutes | `python3 asm.py -d <domain name> -p -a -t 5` |
+| `-t` | Run tool automatically every specified seconds | `python3 asm.py -d <domain name> -p -a -t 86400` |
+
+## Step by step to use ALERT (-a) function
+1. Scan all subdomain and open port in your domain:
+```
+python3 asm.py -d <domain name> -p -o domain.txt
+```
+2. Use domain.txt data (host: port) copy to "valid_hosts" section in register.ini as a baseline 
+example:
+```
+subdomain1.domain.com: 25, 445
+subdomain2.domain.com: 515, 445
+```
+3. Check again to see if there is an alert (subdomain, port not found yet):
+```
+python3 asm.py -d <domain name> -p -a 
+```
+or automatically scan the tool (For example, scan once a day):
+```
+python3 asm.py -d <domain name> -p -a -t 86400
+```
 
 ## Step by step to send ALERT to email
 1. Using database to save exist alert:
