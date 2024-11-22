@@ -41,7 +41,22 @@ chmod +x setup.sh
 | `-d`      | Use Subfinder, Sublist3r, Assetfinder and Security-trails API to scan for subdomain   | `python3 asm.py -d <domain name> ` |
 | `-p`      | Perform opening port scan with Naabu on subdomains      | `python3 asm.py -d <domain name> -p` |
 | `-a` | Get valid host-port data from config.ini, compare with scanned host-ports and ALERT if there is a difference | `python3 asm.py -d <domain name> -p -a` |
+| `-e` | Send those ALERT to your email | `python3 asm.py -d <domain name> -p -a -e` |
 | `-t` | Run tool automatically every specified seconds | `python3 asm.py -d <domain name> -p -a -t 86400` |
+
+$ tree
+.
+├── dir1
+│   ├── file11.ext
+│   └── file12.ext
+├── dir2
+│   ├── file21.ext
+│   ├── file22.ext
+│   └── file23.ext
+├── dir3
+├── file_in_root.ext
+└── README.md
+
 
 ## Step by step to use ALERT (-a) function
 1. Scan all subdomain and open port in your domain:
