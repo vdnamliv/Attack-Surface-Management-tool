@@ -1,4 +1,4 @@
-# Automated Attack Surface Management Tool
+# Automated Attack Surface Management Tool (LINUX)
 
 ## Feature:
 - Find **all subdomains** and scan **opening ports** on them from an input domain name or IPs list.
@@ -67,12 +67,12 @@ python3 asm.py -d <domain name> -p -a -t 86400
 
 ## Step by step to send ALERT to email
 1. Using database to save exist alert:
-To avoid email "bombs", I stored the sent alerts in a simple SQLite database (alert.db).
+- To avoid email "bombs", I stored the sent alerts in a simple SQLite database (alert.db).
 2. Change config.ini
-Change "your_gmail" and "your_app_password", if don't know how to create app password, go [here](https://myaccount.google.com/apppasswords?pli=1&rapt=AEjHL4OVlHBZyIzfrw29E_Q4mYB5-Ei_wmrnL7Bw5Mvr51ST_6r9yfNADQL6wxYkdzGYKzB5DULwwhRcJaOEfKjloUDyhUbRCHUonLcj99aCP6EDXzOBBFM)
+- Change "your_gmail" and "your_app_password", if don't know how to create app password, go [here](https://myaccount.google.com/apppasswords?pli=1&rapt=AEjHL4OVlHBZyIzfrw29E_Q4mYB5-Ei_wmrnL7Bw5Mvr51ST_6r9yfNADQL6wxYkdzGYKzB5DULwwhRcJaOEfKjloUDyhUbRCHUonLcj99aCP6EDXzOBBFM)
 
 3. Send alert to your email:
-For example, you want to run the tool periodically once a day:
+- For example, you want to run the tool periodically once a day:
 ```
 python3 asm.py -d <domain name> -p -a -t 86400 
 ```
