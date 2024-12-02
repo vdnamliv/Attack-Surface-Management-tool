@@ -11,9 +11,6 @@ Logic kiem tra alert:
 """
 
 def init_db(db_path="open_ports.db"):
-    """
-    Initialize the database and create the table if it does not exist.
-    """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''
@@ -28,10 +25,8 @@ def init_db(db_path="open_ports.db"):
     conn.commit()
     return conn
 
+#Save a new alert to the database or update an existing record.
 def save_to_db(domain, port, alert_message, conn):
-    """
-    Save a new alert to the database or update an existing record.
-    """
     cursor = conn.cursor()
     scan_date = int(datetime.now().timestamp())
     cursor.execute("""
@@ -53,10 +48,9 @@ def load_register(register_file):
     
     return valid_hosts
 
+#Query the database to check if a domain-port pair already exists.
 def should_alert(domain, port, conn):
-    """
-    Query the database to check if a domain-port pair already exists.
-    """
+
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM open_ports WHERE domain = ? AND port = ?", (domain, port))
     exists = cursor.fetchone()
@@ -80,26 +74,28 @@ def validate_ports(input_file, valid_hosts, conn, output_file=None):
                 click.echo(f"Invalid line format in formatted naabu file: {line.strip()}")
                 continue
 
+            port_set = set(ports) - {'80', '443', '8080', '8443'}  # Bỏ qua các cổng phổ biến
             if domain in valid_hosts:
-                valid_port_set = set(valid_hosts[domain])  
-                port_set = set(ports) - {'80', '443'}
-                
+                valid_port_set = set(valid_hosts[domain])
                 invalid_ports = port_set - valid_port_set
                 if invalid_ports:
-                    alert_message = f"ALERT: {domain} has unauthorized port(s) open - {', '.join(invalid_ports)}"
-                    output_data.append(alert_message)
                     for port in invalid_ports:
-                        port_dict.append((domain, port, alert_message))
-                    alert = True
+                        if should_alert(domain, port, conn):  # Kiểm tra database
+                            alert_message = f"ALERT: {domain} has unauthorized port(s) open - {port}"
+                            output_data.append(alert_message)
+                            port_dict.append((domain, port, alert_message))
+                            alert = True
             else:
-                unknown_ports = set(ports) - {'80', '443', '8080', '8443'}
+                unknown_ports = port_set - {'8080', '8443'}  # Thêm cổng phổ biến khác nếu cần
                 if unknown_ports:
-                    alert_message = f"ALERT: Unknown domain {domain} with open port(s) {', '.join(unknown_ports)}"
-                    output_data.append(alert_message)
                     for port in unknown_ports:
-                        port_dict.append((domain, port, alert_message))
-                    alert = True
+                        if should_alert(domain, port, conn):  # Kiểm tra database
+                            alert_message = f"ALERT: Unknown domain {domain} with open port(s) {port}"
+                            output_data.append(alert_message)
+                            port_dict.append((domain, port, alert_message))
+                            alert = True
 
+    # Lưu dữ liệu nếu có alert
     if port_dict:
         for domain, port, alert_message in port_dict:
             save_to_db(domain, port, alert_message, conn)
@@ -110,4 +106,9 @@ def validate_ports(input_file, valid_hosts, conn, output_file=None):
         else:
             click.echo("\n".join(output_data))
     else:
-        click.echo("No alert" if not alert else "No new alert, old alerts are in database")
+        # Nếu không có alert nào mới
+        if not alert:
+            click.echo("No alert")
+        else:
+            click.echo("No new alert, old alerts are in database")
+
