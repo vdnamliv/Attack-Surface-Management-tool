@@ -3,6 +3,13 @@ import configparser
 from datetime import datetime
 import click
 
+
+# Thiết lập logging
+logging.basicConfig(
+    filename="alerts.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 """
 Logic kiem tra alert:
 - dau tien kiem tra trong valid_hosts trong register.ini, neu trung het thi No Alert
@@ -71,6 +78,7 @@ def validate_ports(input_file, valid_hosts, conn, output_file=None):
                 domain = domain.strip()
                 ports = [port.strip() for port in ports.split(',')]
             except ValueError:
+                logging.warning(f"Invalid line format in formatted naabu file: {line.strip()}")
                 click.echo(f"Invalid line format in formatted naabu file: {line.strip()}")
                 continue
 
@@ -108,7 +116,9 @@ def validate_ports(input_file, valid_hosts, conn, output_file=None):
     else:
         # Nếu không có alert nào mới
         if not alert:
+            logging.info("No alert")
             click.echo("No alert")
         else:
+            logging.info("No new alert, old alerts are in database")
             click.echo("No new alert, old alerts are in database")
 
