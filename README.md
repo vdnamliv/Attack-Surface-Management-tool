@@ -39,6 +39,7 @@ chmod +x setup.sh
 | Option      | Description                                           | Example Command                                           |
 |-------------|-------------------------------------------------------|----------------------------------------------------------|
 | `-d`      | Use Subfinder, Sublist3r, Assetfinder and Security-trails API to scan for subdomain   | `python3 asm.py -d <domain name> ` |
+| `-f` | Multiple Domain Input for scan subdomain | `python3 asm.py -f <domain file txt>` |
 | `-p`      | Perform opening port scan with Naabu on subdomains      | `python3 asm.py -d <domain name> -p` |
 | `-a` | Get valid host-port data from config.ini, compare with scanned host-ports and ALERT if there is a difference | `python3 asm.py -d <domain name> -p -a` |
 | `-e` | Send those ALERT to your email | `python3 asm.py -d <domain name> -p -a -e` |
@@ -77,3 +78,20 @@ python3 asm.py -d <domain name> -p -a -t 86400
 python3 asm.py -d <domain name> -p -a -t 86400 
 ```
 And done!!!
+
+## Step by step to AUTOMATICALLY run ASM tool 24/7 (Scan subdomain and port, alert, send alert email to admin):
+1. Build your Domain list to scan. (domain.txt)
+2. Config as "send ALERT to email" path above
+3. Scan here:
+```
+python3 asm.py -f <domain file txt> -p -a -t 86400 
+```
+4.See log info in asm_tool.log:
+- For example:
+```
+2024-12-03 12:20:55,929 [INFO] Starting scan for domain: google.com
+2024-12-03 12:22:38,916 [INFO] Scan completed successfully for domain: google.com
+2024-12-03 12:22:38,916 [INFO] Starting scan for domain: youtube.com
+2024-12-03 12:23:30,076 [INFO] Scan completed successfully for domain: youtube.com
+2024-12-03 12:23:30,076 [INFO] Waiting 86400 seconds for the next cycle...
+```
