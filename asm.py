@@ -7,12 +7,24 @@ import sqlite3
 import schedule
 import time
 import re 
+import logging
 from subdomain import run_subfinder, run_sublist3r, run_assetfinder, run_securitytrails, merge_files
 from port_scan import run_naabu, parse_naabu_output
 from alert import init_db, load_register, validate_ports
 from email_alert import check_and_send_alert
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Configure logging
+log_file = "asm_tool.log"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()  # Output logs to console
+    ]
+)
 
 def run_command(command):
     try:
@@ -106,31 +118,49 @@ def execute_scan(domain, port_scan, alert, output, email, conn):
 @click.option('-o', '--output', type=click.Path(), help='File to save the final results')
 @click.option('-e', '--email', is_flag=True, help='Send email alerts for detected issues')
 @click.option("-t", "--interval-time", type=int, default=None, help="Set the interval time in seconds to run the scan automatically.")
-def main(domain, port_scan, alert, output, email ,interval_time):
+@click.option('-f', '--file', type=click.Path(exists=True), help='File containing a list of domains to scan')
+def main(domain, port_scan, alert, output, email, interval_time, file):
     conn = init_db()
+    logging.info("ASM tool started")
 
-    def scan_and_alert():
-        print("-----------------------------------")
-        print("Starting scan...")
+    def scan_and_alert(target_domain):
+        logging.info(f"Starting scan for domain: {target_domain}")
         try:
-            execute_scan(domain=domain, port_scan=port_scan, alert=alert, output=output, email = email, conn=conn)
-            print("Scan completed.")
+            execute_scan(domain=target_domain, port_scan=port_scan, alert=alert, output=output, email=email, conn=conn)
+            logging.info(f"Scan completed successfully for domain: {target_domain}")
         except Exception as e:
-            print(f"Error during scan: {e}")
+            logging.error(f"Error during scan for domain {target_domain}: {e}")
 
-    if interval_time:
-        # Loop to automatically scan at the given interval
+    if file:
+        with open(file, 'r') as f:
+            domains = [line.strip() for line in f.readlines()]
+        logging.info(f"Loaded {len(domains)} domains from file {file}")
+
         while True:
-            scan_and_alert()
-            print(f"Waiting {interval_time} seconds to next scan...")
-            print("-----------------------------------")
-            time.sleep(interval_time)  # Wait before next scan
+            for target_domain in domains:
+                scan_and_alert(target_domain)
+            logging.info(f"Waiting {interval_time} seconds for the next cycle...")
+            time.sleep(interval_time)
     else:
-        scan_and_alert()  # Run the scan once if no interval is specified
+        def single_scan():
+            logging.info("Starting scan...")
+            try:
+                execute_scan(domain=domain, port_scan=port_scan, alert=alert, output=output, email=email, conn=conn)
+                logging.info("Scan completed successfully.")
+            except Exception as e:
+                logging.error(f"Error during scan: {e}")
+
+        if interval_time:
+            while True:
+                single_scan()
+                logging.info(f"Waiting {interval_time} seconds for the next scan...")
+                time.sleep(interval_time)
+        else:
+            single_scan()
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nScan stopped by user.")
+        logging.warning("Scan stopped by user.")
         sys.exit(0)
