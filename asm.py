@@ -37,16 +37,16 @@ def run_command(command):
     try:
         subprocess.run(command, shell=True, check=True)
     except subprocess.CalledProcessError as e:
-        click.echo(f"Error occurred: {e}")
+        logging.error(f"Error occurred: {e}")
         exit(1)
 
 def safe_run(func, *args, **kwargs):
     try:
         func(*args, **kwargs)
     except Exception as e:
-        click.echo(f"Error running {func.__name__}: {e}")
+        logging.error(f"Error running {func.__name__}: {e}")
 
-def execute_scan(domain, port_scan, alert, output, email, conn):
+def execute_scan(domain, port_scan, alert, output, email, conn, file_sub=None):
     # Initialize database connection
     conn = init_db()
 
@@ -77,7 +77,7 @@ def execute_scan(domain, port_scan, alert, output, email, conn):
                     future.result()  # Wait for all tasks to complete
 
             # Merge results
-            merge_files(subfinder_file, sublist3r_file, assetfinder_file, st_file, subs_file)
+            merge_files(subfinder_file, sublist3r_file, assetfinder_file, st_file, subs_file, file_sub)
 
             # If only "-s" (no "-p" or "-a")
             if not port_scan and not alert:
@@ -85,13 +85,13 @@ def execute_scan(domain, port_scan, alert, output, email, conn):
                     with open(subs_file, 'r') as f, open(output, 'w') as o:
                         o.write(f.read())  # Write merged subdomains to output file
                 else:
-                    click.echo("You can specify an output file using -o to save subdomains.")
+                    logging.info("You can specify an output file using -o to save subdomains.")
 
             # Port scanning if "-p" is specified
             if port_scan:
-                click.echo(f"Starting port scan for subdomains in {subs_file}...")
+                logging.info(f"Starting port scan for subdomains in {subs_file}...")
                 if not run_naabu(subs_file, naabu_raw_file):
-                    click.echo("Naabu scan failed. Skipping port scanning step.")
+                    logging.error("Naabu scan failed. Skipping port scanning step.")
                     return
 
                 parse_naabu_output(naabu_raw_file, formatted_naabu_file)
@@ -100,17 +100,17 @@ def execute_scan(domain, port_scan, alert, output, email, conn):
                 if output:
                     with open(formatted_naabu_file, 'r') as f, open(output, 'w') as o:
                         o.write(f.read())  # Write formatted results to output file
-                    click.echo(f"Port scan results saved to {output}")
+                    logging.info(f"Port scan results saved to {output}")
                 else:
                     with open(formatted_naabu_file, 'r') as f:
-                        click.echo(f.read())  # Print formatted results to terminal
+                        logging.info(f.read())  # Print formatted results to terminal
 
         # Alert validation if "-a" is specified
         if alert:
             if os.path.exists(formatted_naabu_file):
                 validate_ports(formatted_naabu_file, valid_hosts, conn, output)
             else:
-                click.echo("No ports scanned or formatted_naabu_file is missing.")
+                logging.info("No ports scanned or formatted_naabu_file is missing.")
 
         if email:
             try:
@@ -125,23 +125,35 @@ def execute_scan(domain, port_scan, alert, output, email, conn):
 @click.option('-o', '--output', type=click.Path(), help='File to save the final results')
 @click.option('-e', '--email', is_flag=True, help='Send email alerts for detected issues')
 @click.option("-t", "--interval-time", type=int, default=None, help="Set the interval time in seconds to run the scan automatically.")
-@click.option('-f', '--file', type=click.Path(exists=True), help='File containing a list of domains to scan')
-def main(domain, port_scan, alert, output, email, interval_time, file):
+@click.option('-fd', '--file-domain', type=click.Path(exists=True), help='File containing a list of domains to scan')
+@click.option('-fs', '--file-sub', type=click.Path(exists=True), help='File containing a list of subdomains to support scanning')
+
+def main(domain, port_scan, alert, output, email, interval_time, file_domain,file_sub):
     conn = init_db()
     logging.info("ASM tool started")
 
     def scan_and_alert(target_domain):
         logging.info(f"Starting scan for domain: {target_domain}")
         try:
-            execute_scan(domain=target_domain, port_scan=port_scan, alert=alert, output=output, email=email, conn=conn)
+            execute_scan(
+                domain=target_domain,
+                subdomains=subdomains,
+                port_scan=port_scan,
+                alert=alert,
+                output=output,
+                email=email,
+                conn=conn,
+                file_sub=file_sub
+            )
+
             logging.info(f"Scan completed successfully for domain: {target_domain}")
         except Exception as e:
             logging.error(f"Error during scan for domain {target_domain}: {e}")
 
-    if file:
-        with open(file, 'r') as f:
+    if file_domain:
+        with open(file_domain, 'r') as f:
             domains = [line.strip() for line in f.readlines()]
-        logging.info(f"Loaded {len(domains)} domains from file {file}")
+        logging.info(f"Loaded {len(domains)} domains from file {file_domain}")
 
         while True:
             for target_domain in domains:
@@ -166,8 +178,5 @@ def main(domain, port_scan, alert, output, email, interval_time, file):
             single_scan()
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        logging.warning("Scan stopped by user.")
-        sys.exit(0)
+    logging.info("ASM tool initiated without manual interruption.")
+    main()
