@@ -61,11 +61,11 @@ def run_securitytrails(domain, output_file):
         click.echo("Error: SecurityTrails command execution failed.")
         return None
 
-def merge_files(file1, file2, file3, file4, output_file):
+def merge_files(file1, file2, file3, file4, output_file, file_sub=None):
     subdomain_regex = re.compile(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
     subdomains = set()
-    for fname in [file1, file2, file3, file4]:
+    for fname in [file1, file2, file3, file4, file_sub]:
         if os.path.exists(fname):
             with open(fname) as infile:
                 for line in infile:
