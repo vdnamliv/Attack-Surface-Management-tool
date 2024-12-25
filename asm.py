@@ -20,7 +20,7 @@ from function.subdomain import (
 from function.port_scan import run_naabu, parse_naabu_output
 from function.alert import init_db, load_register, validate_ports
 from function.email_alert import check_and_send_alert
-from function.alert_team import TeamsAlert
+from function.teams_alert import TeamsAlert
 
 
 # Configure logging
