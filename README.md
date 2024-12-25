@@ -1,4 +1,4 @@
-# Automated Attack Surface Management Tool (LINUX)
+# Automated Attack Surface Scanning Tool (Linux)
 
 ## Feature:
 - Find **all subdomains** and scan **opening ports** on them from an input domain name or IPs list.
@@ -24,10 +24,10 @@ sudo apt install git
 ```
 2. Install tool and run the setup.sh:
 ```
-git clone https://github.com/vdnamliv/Attack-Surface-Management-tool
+git clone https://github.com/it-sec-vf/asm
 ```
 ```
-cd Attack-Surface-Management-tool
+cd asm
 chmod +x setup.sh
 ./setup.sh
 ```
@@ -39,12 +39,13 @@ chmod +x setup.sh
 | Option      | Description                                           | Example Command                                           |
 |-------------|-------------------------------------------------------|----------------------------------------------------------|
 | `-d`      | Use Subfinder, Sublist3r, Assetfinder and Security-trails API to scan for subdomain   | `python3 asm.py -d <domain name> ` |
-| `-f` | Multiple Domain Input for scan subdomain | `python3 asm.py -f <domain file txt>` |
+| `-f` | Multiple Domain Input for scanning | `python3 asm.py -f <domain file txt>` |
 | `-p`      | Perform opening port scan with Naabu on subdomains      | `python3 asm.py -d <domain name> -p` |
 | `-a` | Get valid host-port data from config.ini, compare with scanned host-ports and ALERT if there is a difference | `python3 asm.py -d <domain name> -p -a` |
-| `-e` | Send those ALERT to your email | `python3 asm.py -d <domain name> -p -a -e` |
-| `-t` | Run tool automatically every specified seconds | `python3 asm.py -d <domain name> -p -a -t 86400` |
-
+| `-o` | Write to output file to save the results | `python3 asm.py -d <domain name> -p -o` |
+| `-e` | Send email alerts for detected issues | `python3 asm.py -d <domain name> -p -a -e` |
+| `--teams` | Send teams alerts for detected issues | `python3 asm.py -d <domain name> -p -a --teams` |
+| `-t` | Run tool automatically every specified second | `python3 asm.py -d <domain name> -p -a -t 86400` |
 
 ## Step by step to use ALERT (-a) function
 1. Scan all subdomain and open port in your domain:
@@ -69,7 +70,7 @@ python3 asm.py -d <domain name> -p -a -t 86400
 ## Step by step to send ALERT to email
 1. Using database to save exist alert:
 - To avoid email "bombs", I stored the sent alerts in a simple SQLite database (alert.db).
-2. Change config.ini
+2. Change config.ini:
 - Change "your_gmail" and "your_app_password", if don't know how to create app password, go [here](https://myaccount.google.com/apppasswords?pli=1&rapt=AEjHL4OVlHBZyIzfrw29E_Q4mYB5-Ei_wmrnL7Bw5Mvr51ST_6r9yfNADQL6wxYkdzGYKzB5DULwwhRcJaOEfKjloUDyhUbRCHUonLcj99aCP6EDXzOBBFM)
 
 3. Send alert to your email:
