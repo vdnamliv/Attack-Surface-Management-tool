@@ -33,9 +33,8 @@ def parse_naabu_output(input_file, output_file):
             result_line = f"{domain} = {', '.join(ports)}"
             outfile.write(result_line + '\n')
 
-    # Optionally, echo the result
-    for domain, ports in port_dict.items():
-        result_line = f"{domain} = {', '.join(ports)}"
-        click.echo(result_line)
+    # for domain, ports in port_dict.items():
+    #     result_line = f"{domain} = {', '.join(ports)}"
+    #     click.echo(result_line)
 
     return port_dict
