@@ -1,15 +1,10 @@
 import click
-import subprocess
-import configparser
-import os
-import tempfile
-import sqlite3
-import schedule
-import time
-import re 
 import logging
-from datetime import datetime, timedelta
+import os
+import time
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from function.subdomain import (
     run_subfinder,
     run_sublist3r,
@@ -18,173 +13,93 @@ from function.subdomain import (
     merge_files,
 )
 from function.port_scan import run_naabu, parse_naabu_output
-from function.alert import init_db, load_register, validate_ports
-from function.email_alert import check_and_send_alert
-from function.teams_alert import TeamsAlert
+from function.alert import init_alert_db, load_register, validate_host_ports  # Giữ nếu bạn cần alert
 
+TOOL_DIR = "./tools"
+LOG_FILE = "asm_tool.log"
 
-# Configure logging
-log_file = "asm_tool.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler()  # Output logs to console
-    ]
+    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler()]
 )
-
-def run_command(command):
-    try:
-        subprocess.run(command, shell=True, check=True)
-    except subprocess.CalledProcessError as e:
-        click.echo(f"Error occurred: {e}")
-        exit(1)
-
-def safe_run(func, *args, **kwargs):
-    try:
-        func(*args, **kwargs)
-    except Exception as e:
-        click.echo(f"Error running {func.__name__}: {e}")
-
-def execute_scan(domain, port_scan, alert, output, email, teams, conn):
-    # Initialize database connection
-    conn = init_db()
-
-    # Load configuration
-    register_file = "register.ini"
-    valid_hosts = load_register(register_file)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Define temporary file paths
-        subfinder_file = os.path.join(tmpdir, "subfinder.txt")
-        sublist3r_file = os.path.join(tmpdir, "sublist3r.txt")
-        assetfinder_file = os.path.join(tmpdir, "assetfinder.txt")
-        st_file = os.path.join(tmpdir, "securitytrails.txt")
-        subs_file = os.path.join(tmpdir, "Subs.txt")
-        naabu_raw_file = os.path.join(tmpdir, "naabu_raw.txt")
-        formatted_naabu_file = os.path.join(tmpdir, "formatted_naabu.txt")
-
-        # Subdomain enumeration if "-s" is specified
-        if domain:
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = [
-                    executor.submit(safe_run, run_subfinder, domain, subfinder_file),
-                    executor.submit(safe_run, run_sublist3r, domain, sublist3r_file),
-                    executor.submit(safe_run, run_assetfinder, domain, assetfinder_file),
-                    executor.submit(safe_run, run_securitytrails, domain, st_file)
-                ]
-                for future in futures:
-                    future.result()  # Wait for all tasks to complete
-
-            # Merge results
-            merge_files(subfinder_file, sublist3r_file, assetfinder_file, st_file, subs_file)
-
-            # If only "-s" (no "-p" or "-a")
-            if not port_scan and not alert:
-                if output:
-                    with open(subs_file, 'r') as f, open(output, 'w') as o:
-                        o.write(f.read())  # Write merged subdomains to output file
-                else:
-                    click.echo("You can specify an output file using -o to save subdomains.")
-
-            # Port scanning if "-p" is specified
-            if port_scan:
-                click.echo(f"Starting port scan for subdomains in {subs_file}...")
-                if not run_naabu(subs_file, naabu_raw_file):
-                    click.echo("Naabu scan failed. Skipping port scanning step.")
-                    return
-
-                parse_naabu_output(naabu_raw_file, formatted_naabu_file)
-
-                # Handle port scan output
-                if output:
-                    with open(formatted_naabu_file, 'r') as f, open(output, 'w') as o:
-                        o.write(f.read())  # Write formatted results to output file
-                    click.echo(f"Port scan results saved to {output}")
-                else:
-                    with open(formatted_naabu_file, 'r') as f:
-                        click.echo(f.read())  # Print formatted results to terminal
-
-        # Alert validation if "-a" is specified
-        if alert:
-            if os.path.exists(formatted_naabu_file):
-                validate_ports(formatted_naabu_file, valid_hosts, conn, output)
-            else:
-                click.echo("No ports scanned or formatted_naabu_file is missing.")
-
-        #If -e
-        if email:
-            try:
-                check_and_send_alert()  # Check database and send email if alerts exist
-            except Exception as e:
-                logging.error(f"Failed to send email alert: {e}")
-        
-        #If --teams
-        if teams:
-            try:
-                # Example usage
-                teams_alert = TeamsAlert(
-                    webhook_url="https://prod-30.southeastasia.logic.azure.com:443/workflows/30f22043bcfc43bc9e4b51cf51962ffe/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1UI_y06YKKmV0y31nTBaYn-yhodZMAInnJAWRP1fZuc",
-                    mention_id="namvd6@vingroup.net",
-                    mention_name="Vu Dinh Nam"
-                )
-                teams_alert.send_alert()
-            except Exception as e:
-                logging.error(f"Failed to send teams alert: {e}")
 
 @click.command()
 @click.option('-d', '--domain', type=str, help='Domain to scan for subdomains')
 @click.option('-p', '--port-scan', is_flag=True, help='Perform port scan with naabu on subdomains')
-@click.option('-a', '--alert', is_flag=True, help='Configuration file with valid hosts and ports')
+@click.option('-v', '--vul', is_flag=True, help='(Removed - Currently unused)')
+@click.option('-a', '--alert', is_flag=True, help='Validate results against registered hosts and ports')
 @click.option('-o', '--output', type=click.Path(), help='File to save the final results')
-@click.option('-e', '--email', is_flag=True, help=' ')
-@click.option('--teams', is_flag=True, help='Send teams alerts for detected issues')
-@click.option("-t", "--interval-time", type=int, default=None, help="Set the interval time in seconds to run the scan automatically.")
-@click.option('-f', '--file', type=click.Path(exists=True), help='Multiple Domain Input for scanning')
+@click.option('-e', '--email', is_flag=True, help='(Removed - Currently unused)')
+@click.option('--teams', is_flag=True, help='(Removed - Currently unused)')
+@click.option('-t', '--interval-time', type=int, default=None, help='Interval time in seconds for repeated scans')
+@click.option('-f', '--file', type=click.Path(exists=True), help='File containing multiple domains to scan')
+def main(domain, port_scan, vul, alert, output, email, teams, interval_time, file):
+    conn = init_alert_db()  # Nếu bạn vẫn giữ alert thì giữ phần này
 
-def main(domain, port_scan, alert, output, email, teams, interval_time, file):
-    conn = init_db()
-    logging.info("ASM tool started")
+    def run_scan(domain):
+        tmp_dir = "temp"
+        os.makedirs(tmp_dir, exist_ok=True)
 
-    def scan_and_alert(target_domain):
-        logging.info(f"Starting scan for domain: {target_domain}")
-        try:
-            execute_scan(domain=target_domain, port_scan=port_scan, alert=alert, output=output, email=email, teams=teams, conn=conn)
-            logging.info(f"Scan completed successfully for domain: {target_domain}")
-        except Exception as e:
-            logging.error(f"Error during scan for domain {target_domain}: {e}")
+        sub_files = {
+            "subfinder": os.path.join(tmp_dir, "subfinder.txt"),
+            "sublist3r": os.path.join(tmp_dir, "sublist3r.txt"),
+            "assetfinder": os.path.join(tmp_dir, "assetfinder.txt"),
+            "securitytrails": os.path.join(tmp_dir, "securitytrails.txt")
+        }
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                executor.submit(run_subfinder, domain, sub_files["subfinder"]),
+                executor.submit(run_sublist3r, domain, sub_files["sublist3r"]),
+                executor.submit(run_assetfinder, domain, sub_files["assetfinder"]),
+                executor.submit(run_securitytrails, domain, sub_files["securitytrails"])
+            ]
+
+            for future in as_completed(futures):
+                future.result()
+
+        merged_file = os.path.join(tmp_dir, "merged_subdomains.txt")
+        merge_files(sub_files, merged_file)
+
+        if output:
+            os.rename(merged_file, output)
+
+        if port_scan:
+            naabu_raw = os.path.join(tmp_dir, "naabu_raw.txt")
+            naabu_formatted = os.path.join(tmp_dir, "naabu_formatted.txt")
+
+            if run_naabu(merged_file, naabu_raw):
+                parse_naabu_output(naabu_raw, naabu_formatted)
+
+                if output:
+                    with open(naabu_formatted, "r") as src, open(output, "a") as dest:
+                        dest.write("\n")
+                        dest.write(src.read())
+
+        if alert:
+            valid_hosts = load_register("register.ini")
+            if os.path.exists(naabu_formatted):
+                validate_host_ports(naabu_formatted, valid_hosts, conn, output)
 
     if file:
         with open(file, 'r') as f:
             domains = [line.strip() for line in f.readlines()]
-        logging.info(f"Loaded {len(domains)} domains from file {file}")
 
         while True:
-            for target_domain in domains:
-                scan_and_alert(target_domain)
-            logging.info(f"Waiting {interval_time} seconds for the next cycle...")
-            time.sleep(interval_time)
+            for domain in domains:
+                run_scan(domain)
+            if interval_time:
+                time.sleep(interval_time)
+            else:
+                break
     else:
-        def single_scan():
-            logging.info("Starting scan...")
-            try:
-                execute_scan(domain=domain, port_scan=port_scan, alert=alert, output=output, email=email, teams=teams, conn=conn)
-                logging.info("Scan completed successfully.")
-            except Exception as e:
-                logging.error(f"Error during scan: {e}")
-
         if interval_time:
             while True:
-                single_scan()
-                logging.info(f"Waiting {interval_time} seconds for the next scan...")
+                run_scan(domain)
                 time.sleep(interval_time)
         else:
-            single_scan()
+            run_scan(domain)
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        logging.warning("Scan stopped by user.")
-        sys.exit(0)
+    main()
