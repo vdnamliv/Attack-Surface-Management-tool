@@ -13,7 +13,7 @@ from function.subdomain import (
     merge_files,
 )
 from function.port_scan import run_naabu, parse_naabu_output
-from function.alert import init_db, load_register, validate_ports  
+from function.alert import init_db, load_register, validate_ports 
 
 TOOL_DIR = "./tools"
 LOG_FILE = "asm_tool.log"
@@ -35,7 +35,7 @@ logging.basicConfig(
 @click.option('-t', '--interval-time', type=int, default=None, help='Interval time in seconds for repeated scans')
 @click.option('-f', '--file', type=click.Path(exists=True), help='File containing multiple domains to scan')
 def main(domain, port_scan, vul, alert, output, email, teams, interval_time, file):
-    conn = init_alert_db()  # Nếu bạn vẫn giữ alert thì giữ phần này
+    conn = init_db()  
 
     def run_scan(domain):
         tmp_dir = "temp"
@@ -80,7 +80,7 @@ def main(domain, port_scan, vul, alert, output, email, teams, interval_time, fil
         if alert:
             valid_hosts = load_register("register.ini")
             if os.path.exists(naabu_formatted):
-                validate_host_ports(naabu_formatted, valid_hosts, conn, output)
+                validate_ports(naabu_formatted, valid_hosts, conn, output)
 
     if file:
         with open(file, 'r') as f:
