@@ -1,80 +1,111 @@
 import os
 import subprocess
-import re
+import logging
 import click
-import configparser
 
-config = configparser.ConfigParser()
-config.read("config.ini")
+log_file = "asm_tool.log"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
+)
 
-PATH_SUBLIST3R = config.get("path", "path_sublist3r")
-PATH_ST = config.get("path", "path_st")
-API_KEY_ST = config.get("path", "api_key_st")
+# Đường dẫn thư mục chứa các tool
+TOOL_DIR = "./tools"
+
+def run_command(command, tool_name):
+    """Thực thi lệnh và xử lý lỗi chung cho các tool."""
+    try:
+        subprocess.run(command, check=True)
+        logging.info(f"{tool_name} completed successfully.")
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Error running {tool_name}: {e}")
+        logging.error(f"{tool_name} failed: {e}")
+    except Exception as e:
+        click.echo(f"Unexpected error while running {tool_name}: {e}")
+        logging.error(f"Unexpected error while running {tool_name}: {e}")
 
 def run_subfinder(domain, output_file):
-    try:
-        click.echo(f"Running Subfinder on {domain}...")
-        subfinder_cmd = f"subfinder -d {domain} --all --recursive -o {output_file}"
-        subprocess.run(subfinder_cmd, shell=True, check=True)
-    except Exception as e:
-        click.echo(f"Error running Subfinder: {e}")
+    click.echo(f"Running Subfinder on {domain}...")
+    logging.info(f"Starting Subfinder on {domain}...")
+    
+    command = [os.path.join(TOOL_DIR, "subfinder"), "-d", domain, "-o", output_file]
+    run_command(command, "Subfinder")
 
 def run_sublist3r(domain, output_file):
-    try:
-        click.echo(f"Running Sublist3r on {domain}...")
-        sublist3r_cmd = f"python3 {PATH_SUBLIST3R} -d {domain} -o {output_file}"
-        subprocess.run(sublist3r_cmd, shell=True, check=True)
-    except Exception as e:
-        click.echo(f"Error running Sublist3r: {e}")
+    click.echo(f"Running Sublist3r on {domain}...")
+    logging.info(f"Starting Sublist3r on {domain}...")
+    
+    sublist3r_path = os.path.join(TOOL_DIR, "Sublist3r", "sublist3r.py")
+    command = ["python3", sublist3r_path, "-d", domain, "-o", output_file]
+    run_command(command, "Sublist3r")
 
 def run_assetfinder(domain, output_file):
+    click.echo(f"Running Assetfinder on {domain}...")
+    logging.info(f"Starting Assetfinder on {domain}...")
+    
+    command = [os.path.join(TOOL_DIR, "assetfinder"), "--subs-only", domain]
     try:
-        click.echo(f"Running Assetfinder on {domain}...")
-        assetfinder_cmd = f"assetfinder --subs-only {domain} > {output_file}"
-        subprocess.run(assetfinder_cmd, shell=True, check=True)
-    except Exception as e:
+        with open(output_file, 'w') as f:
+            subprocess.run(command, stdout=f, check=True)
+            logging.info("Assetfinder completed successfully.")
+    except subprocess.CalledProcessError as e:
         click.echo(f"Error running Assetfinder: {e}")
+        logging.error(f"Assetfinder failed: {e}")
+    except Exception as e:
+        click.echo(f"Unexpected error while running Assetfinder: {e}")
+        logging.error(f"Unexpected error while running Assetfinder: {e}")
 
 def run_securitytrails(domain, output_file):
-    if not api_key_st:
-        click.echo("No valid SecurityTrails API key found, skipping SecurityTrails scan.")
-        return None
+    click.echo(f"Running SecurityTrails on {domain}...")
+    logging.info(f"Starting SecurityTrails on {domain}...")
 
+    st_script_path = os.path.join(TOOL_DIR, "security-trails", "securitytrails.py")
+    command = ["python3", st_script_path, "-d", domain]
+    
     try:
-        click.echo(f"Running SecurityTrails on {domain}...")
-        st_cmd = f"python3 {PATH_ST} -d {domain} -k {API_KEY_ST}"
-        result = subprocess.run(st_cmd, shell=True, text=True, capture_output=True)
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        subdomains = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        
+        with open(output_file, 'w') as f:
+            f.write("\n".join(subdomains))
 
-        if result.returncode != 0:
-            click.echo("Error: SecurityTrails command failed or API key may have expired.")
-            return None
-
-        subdomain_regex = re.compile(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
-        subdomains = [
-            line.strip() for line in result.stdout.splitlines() 
-            if subdomain_regex.match(line.strip())
-        ]
-
-        with open(output_file, 'w') as outfile:
-            outfile.write("\n".join(subdomains))
-    except subprocess.CalledProcessError:
+        logging.info("SecurityTrails completed successfully.")
+    except subprocess.CalledProcessError as e:
         click.echo("Error: SecurityTrails command execution failed.")
-        return None
+        logging.error(f"SecurityTrails failed: {e}")
+    except Exception as e:
+        click.echo(f"Unexpected error while running SecurityTrails: {e}")
+        logging.error(f"Unexpected error while running SecurityTrails: {e}")
 
-def merge_files(file1, file2, file3, file4, output_file, file_sub=None):
-    subdomain_regex = re.compile(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+def merge_files(sub_files, output_file):
+    """Hợp nhất kết quả từ nhiều file subdomain thành một file duy nhất."""
+    click.echo(f"Merging subdomain results into {output_file}...")
+    logging.info("Merging subdomain results...")
 
     subdomains = set()
-    for fname in [file1, file2, file3, file4, file_sub]:
-        if os.path.exists(fname):
-            with open(fname) as infile:
-                for line in infile:
-                    subdomain = line.strip()
-                    if subdomain_regex.match(subdomain):
-                        subdomains.add(subdomain)
-        else:
-            print(f"Warning: {fname} not found, skipping...")
 
-    with open(output_file, 'w') as outfile:
-        for subdomain in sorted(subdomains):  
-            outfile.write(subdomain + '\n')
+    for tool, file_path in sub_files.items():
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                lines = [line.strip() for line in f.readlines()]
+                subdomains.update(lines)
+        else:
+            warning_msg = f"Warning: {file_path} not found, skipping {tool} results."
+            click.echo(warning_msg)
+            logging.warning(warning_msg)
+
+    with open(output_file, 'w') as f:
+        f.write("\n".join(sorted(subdomains)))
+
+    click.echo(f"Merged results saved to {output_file}.")
+    logging.info(f"Merged results saved to {output_file}.")
+
+def run_all_subdomain_tools(domain, sub_files):
+    run_subfinder(domain, sub_files["subfinder"])
+    run_sublist3r(domain, sub_files["sublist3r"])
+    run_assetfinder(domain, sub_files["assetfinder"])
+    run_securitytrails(domain, sub_files["securitytrails"])
