@@ -13,7 +13,7 @@ from function.subdomain import (
     merge_files,
 )
 from function.port_scan import run_naabu, parse_naabu_output
-from function.alert import init_alert_db, load_register, validate_host_ports  # Giữ nếu bạn cần alert
+from function.alert import init_db, load_register, validate_ports  
 
 TOOL_DIR = "./tools"
 LOG_FILE = "asm_tool.log"
